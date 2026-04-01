@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+  .issue-item.is-selected{
+    outline: 2px solid rgba(99,102,241,.55);
+    box-shadow: 0 0 0 .25rem rgba(99,102,241,.18), 0 10px 30px rgba(0,0,0,.22);
+  }
+  .issue-item{
+    cursor: pointer;
+    transition: transform .08s ease, outline-color .15s ease;
+  }
+  .issue-item:hover{
+    transform: translateY(-1px);
+  }
+
+  .complexity-pill{
+    display:flex;
+    gap:8px;
+    align-items:center;
+    flex-wrap:wrap;
+    margin-top:8px;
+  }
+</style>
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card shadow-sm h-100 glass-card">
+      <div class="card-header border-0">
+        <h5 class="mb-1">Paste your code</h5>
+        <p class="small text-secondary mb-0">
+          Choose a language and click <strong>Review my code</strong>. Click an issue card to jump to the relevant line.
+        </p>
+      </div>
+      <div class="card-body">
+
+        <form method="post" action="{{ url_for('analyse') }}" id="reviewForm">
+          <div class="row g-3 mb-3">
+            <div class="col-sm-6">
+              <label for="language" class="form-label small">Language</label>
+              <select id="language" name="language" class="form-select form-select-sm">
+                <option value="python" {% if language == 'python' %}selected{% endif %}>Python</option>
+                <option value="cpp" {% if language == 'cpp' or language == 'c++' %}selected{% endif %}>C++</option>
+                <option value="javascript" {% if language == 'javascript' or language == 'js' %}selected{% endif %}>JavaScript</option>
+              </select>
+
+              <!-- Developer mode toggle -->
+              <div class="form-check form-switch mt-2">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  id="developer_mode"
+                  name="developer_mode"
+                  {% if mode == "developer" %}checked{% endif %}
+                >
+                <label class="form-check-label small" for="developer_mode">
+                  Developer mode (more technical explanations)
+                </label>
+              </div>
+            </div>
+
+            <div class="col-sm-6 d-flex align-items-end">
+              <div class="small text-secondary">
+                <span class="badge bg-info-subtle text-info-emphasis me-1">Tip</span>
+                Try a longer function to see a higher complexity score.
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="code" class="form-label small">Code</label>
+            <textarea
+              id="code"
+              name="code"
+              class="form-control code-textarea"
+              rows="20"
+              spellcheck="false"
+              placeholder="Paste your Python, C++ or JavaScript code here..."
+            >{{ code|e }}</textarea>
+          </div>
+
+          <button type="submit" class="btn btn-info btn-modern" id="reviewBtn">
+            Review my code
+          </button>
+
+          <span id="loadingText" class="small muted ms-2" style="display:none;">
+            Analysing…
+          </span>
+        </form>
+
+        <script>
+          document.getElementById("reviewForm").addEventListener("submit", () => {
+            document.getElementById("reviewBtn").disabled = true;
+            document.getElementById("loadingText").style.display = "inline";
+          });
+        </script>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card shadow-sm h-100 glass-card">
+      <div class="card-header border-0 d-flex justify-content-between align-items-center">
+        <div>
+          <h5 class="mb-0">Findings</h5>
+          <p class="small text-secondary mb-0">
+            {{ issues|length }} issue(s) detected.
+          </p>
+
+          {% if complexity_score %}
+            <div class="complexity-pill">
+              <span class="badge bg-secondary-subtle text-secondary-emphasis small">
+                Complexity: {{ complexity_score }}/10
+              </span>
+
+              {% if complexity_score <= 3 %}
+                <span class="badge bg-success-subtle text-success-emphasis small">Low</span>
+              {% elif complexity_score <= 6 %}
+                <span class="badge bg-warning-subtle text-warning-emphasis small">Medium</span>
+              {% else %}
+                <span class="badge bg-danger-subtle text-danger-emphasis small">High</span>
+              {% endif %}
+
+              {% if complexity_reason %}
+                <span class="small text-secondary">{{ complexity_reason }}</span>
+              {% endif %}
+            </div>
+          {% endif %}
+        </div>
+
+        <span class="badge bg-secondary-subtle text-secondary-emphasis small">
+          {{ language|capitalize }}
+        </span>
+      </div>
+
+      <div class="card-body findings-body">
+        {% if issues %}
+          <div class="list-group list-group-flush" id="issuesList">
+            {% for issue in issues %}
+            <div
+              class="list-group-item bg-dark text-light border-secondary mb-2 rounded issue-item"
+              data-line="{{ issue.line }}"
+              tabindex="0"
+              role="button"
+              aria-label="Jump to line {{ issue.line }}"
+            >
+              <div class="d-flex justify-content-between align-items-start">
+                <div class="mb-1">
+                  <span class="badge bg-secondary me-1">{{ issue.issue_type }}</span>
+                  <span class="badge
+                    {% if issue.severity == 'error' %}
+                      bg-danger
+                    {% elif issue.severity == 'warning' %}
+                      bg-warning text-dark
+                    {% else %}
+                      bg-info
+                    {% endif %}
+                  ">
+                    {{ issue.severity|upper }}
+                  </span>
+                </div>
+                <span class="small text-secondary">
+                  Line {{ issue.line }}
+                </span>
+              </div>
+
+              <hr class="border-secondary my-2" />
+
+              <p class="small mb-2"><strong>❌ Problem:</strong><br>{{ issue.problem }}</p>
+              <p class="small mb-2"><strong>⚠️ Why it matters:</strong><br>{{ issue.why_it_matters }}</p>
+              <p class="small mb-0"><strong>🛠 How to fix:</strong><br>{{ issue.how_to_fix }}</p>
+            </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="text-center text-secondary small mt-4">
+            No issues to show yet. Paste some code and click
+            <strong>Review my code</strong>.
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function isPositiveIntString(x){
+    return typeof x === "string" && /^[0-9]+$/.test(x.trim()) && parseInt(x.trim(), 10) > 0;
+  }
+
+  function jumpToLine(textarea, lineNumber){
+    const lines = textarea.value.split("\n");
+    const lineIndex = lineNumber - 1;
+    if (lineIndex < 0 || lineIndex >= lines.length) return false;
+
+    let start = 0;
+    for (let i = 0; i < lineIndex; i++){
+      start += lines[i].length + 1;
+    }
+    const end = start + lines[lineIndex].length;
+
+    textarea.focus();
+    textarea.setSelectionRange(start, end);
+
+    const style = window.getComputedStyle(textarea);
+    const lineHeight = parseFloat(style.lineHeight) || 18;
+    textarea.scrollTop = Math.max(0, (lineIndex - 3) * lineHeight);
+
+    return true;
+  }
+
+  function clearSelectedCards(){
+    document.querySelectorAll(".issue-item.is-selected").forEach(el => el.classList.remove("is-selected"));
+  }
+
+  document.querySelectorAll(".issue-item").forEach(card => {
+    card.addEventListener("click", () => {
+      const lineRaw = (card.dataset.line || "").toString().trim();
+      const textarea = document.getElementById("code");
+
+      clearSelectedCards();
+      card.classList.add("is-selected");
+
+      if (!isPositiveIntString(lineRaw)) return;
+      jumpToLine(textarea, parseInt(lineRaw, 10));
+    });
+
+    card.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " "){
+        e.preventDefault();
+        card.click();
+      }
+    });
+  });
+</script>
+
+{% endblock %}
